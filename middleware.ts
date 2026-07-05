@@ -11,7 +11,9 @@ const { rewrite: rewriteSuffix } = rewritePath(
   `${docsContentRoute}{/*path}/content.md`,
 );
 
-export default function proxy(request: NextRequest) {
+// Must stay an edge middleware (middleware.ts, not proxy.ts): OpenNext
+// Cloudflare does not support the Node.js runtime that proxy.ts requires.
+export default function middleware(request: NextRequest) {
   const result = rewriteSuffix(request.nextUrl.pathname);
   if (result) {
     return NextResponse.rewrite(new URL(result, request.nextUrl));
