@@ -1,4 +1,4 @@
-export const appName = 'Hoard CTI Docs';
+export const appName = 'Hoard CTI';
 export const docsRoute = '/';
 export const docsImageRoute = '/og/docs';
 export const docsContentRoute = '/llms.mdx/docs';
