@@ -1,13 +1,42 @@
 import { docs } from 'collections/server';
-import { loader } from 'fumadocs-core/source';
-import { lucideIconsPlugin } from 'fumadocs-core/source/lucide-icons';
+import { loader, type LoaderPlugin } from 'fumadocs-core/source';
+import { createElement } from 'react';
+import { CircleQuestionMark, Rocket } from 'lucide-react';
 import { docsContentRoute, docsImageRoute, docsRoute } from './shared';
+
+// Import icons individually instead of using `lucideIconsPlugin`, which pulls
+// the entire lucide registry (~1600 icons) into the server bundle.
+const icons = { CircleQuestionMark, Rocket };
+
+function iconsPlugin(): LoaderPlugin {
+  function replaceIcon<N extends { icon?: unknown }>(node: N): N {
+    if (typeof node.icon === 'string') {
+      const Icon = icons[node.icon as keyof typeof icons];
+      if (Icon) {
+        node.icon = createElement(Icon);
+      } else {
+        console.warn(`[icons] Unknown icon: ${node.icon}. Add it to the icon map in lib/source.ts.`);
+        node.icon = undefined;
+      }
+    }
+    return node;
+  }
+
+  return {
+    name: 'fumadocs:icon',
+    transformPageTree: {
+      file: replaceIcon,
+      folder: replaceIcon,
+      separator: replaceIcon,
+    },
+  } as LoaderPlugin;
+}
 
 // See https://fumadocs.dev/docs/headless/source-api for more info
 export const source = loader({
   baseUrl: docsRoute,
   source: docs.toFumadocsSource(),
-  plugins: [lucideIconsPlugin()],
+  plugins: [iconsPlugin()],
 });
 
 export function getPageImage(page: (typeof source)['$inferPage']) {

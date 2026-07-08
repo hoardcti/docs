@@ -2,6 +2,8 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"main": ".open-next/worker.js",
 	"name": "docs-hoardcti-com",
+	// Minify the bundle to stay under the 3 MiB free-plan worker size limit
+	"minify": true,
 	"compatibility_date": "2026-07-05",
 	"compatibility_flags": [
 		"nodejs_compat",
