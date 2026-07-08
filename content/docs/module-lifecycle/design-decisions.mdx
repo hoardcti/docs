@@ -1,0 +1,40 @@
+---
+title: Design Decisions
+description: Resolved architectural decisions with rationale, questions that remain open, and the schema changes this lifecycle implies.
+---
+
+## Resolved decisions
+
+Previously open; now resolved with rationale:
+
+| Decision | Resolution | Why |
+|---|---|---|
+| Invocation | **Container, pinned digest, signed** — plain CLI allowed only during `incubating` | Dependency isolation between modules, plus the sandbox and supply-chain story (signing, digest pinning), only work with an artifact boundary. The dev loop stays fast: the CLI just lives inside the image. |
+| Delivery | **Pull-first.** A push path can come later as an authenticated ingest endpoint feeding the *same* validation gate | Pull keeps scheduling, retries, sandboxing, and rate control in one place with one trust model. Push becomes an additive feature for event-driven feeds, not a fork in the architecture. |
+| Validation | **Self-validation + independent gate re-check** | The self-check runs inside the semi-trusted boundary; the gate *is* the trust boundary. Both, always. |
+
+## Still open
+
+Genuinely open, and safely deferrable until the orchestrator build:
+
+- Store technology
+- Registry format (signed static file vs. small service)
+- Decay parameters per feed type
+- Circuit-breaker and promotion thresholds (the Ns, Ms, and Xs above)
+
+## Schema implications
+
+This lifecycle implies changes to propose in the `schemas` repo:
+
+- Each payload schema declares its **identity key fields** — the dedup basis from [Stage 6](/module-lifecycle/validation-and-dedup#stage-6--dedup--corroboration)
+- Envelope `provenance` becomes a **list** of source entries, each carrying per-source confidence
+- Envelope gains `sighting_count`, `first_seen`, `last_seen`, and `valid_until`
+- Envelope timestamps split into `observed_at` / `ingested_at`
+- TLP constrained to the **TLP 2.0** vocabulary
+- Lineage fields (`run_id`, `module_version`) added, and the raw reference required to point at an **immutable, content-addressed** artifact rather than a live URL
+- **Payload shape reconciled with JSONL** *(done for CVE)*. `v1.0.0/cve.schema.json` now describes a single record per JSONL line — envelope fields (`schema_version`, `source`, `generated_at`, `batch_id`) plus one `cve` object — so per-record concerns (dedup identity, per-source confidence, quarantining individual rejects) work line-by-line. Future payload schemas should follow the same record-per-line shape; a shared envelope schema factored out of the per-type schemas remains worth considering
+
+## Related
+
+- [`schemas` repo](https://github.com/hoardcti/schemas) — single source of truth for hoard-schema: versioned JSON Schema (draft 2020-12) documents published at `schema.hoardcti.com`, used by module self-validation, the conformance kit, and the central validation gate alike. See [The Schema System](/module-lifecycle/schema-system)
+- `hoard-conformance` — module contract test harness, to be built alongside the orchestrator

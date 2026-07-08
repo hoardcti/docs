@@ -1,0 +1,14 @@
+{
+  "title": "Module Lifecycle",
+  "defaultOpen": true,
+  "pages": [
+    "index",
+    "schema-system",
+    "module-contract",
+    "orchestration",
+    "validation-and-dedup",
+    "storage-and-distribution",
+    "governance",
+    "design-decisions"
+  ]
+}

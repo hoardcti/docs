@@ -1,0 +1,101 @@
+---
+title: The Module Contract
+description: What every feed module must expose at its boundary — the manifest, the entrypoint, the run report, and self-validation.
+---
+
+A module's internals are its author's business; the boundary is the project's. This page covers Stage 1 (module internals) and Stage 2 (the contract boundary) of the record lifecycle.
+
+## Stage 1 — Module internals (unconstrained)
+
+Internal logic — scraping, parsing, enrichment — is the module author's business. Nothing downstream depends on how this stage works. That said, four practices are strongly recommended and socially enforced:
+
+<Accordions type="multiple">
+
+  <Accordion title="Raw-first capture">
+
+    Archive the raw source artifact (HTML page, API response, feed file) to content-addressed storage **before** parsing it. The envelope's raw reference should point at that immutable blob (by hash), not at a live URL. Sources rot; hidden services vanish in days. Raw capture is the only thing that makes reparsing after a parser bug or a schema change possible.
+
+  </Accordion>
+
+  <Accordion title="Incremental fetch">
+
+    Honor the cursor the orchestrator passes in (see [Registry & Invocation](/module-lifecycle/orchestration#stage-10--scheduling-state--backfill)) instead of re-scraping the full source every run.
+
+  </Accordion>
+
+  <Accordion title="Politeness">
+
+    Respect rate limits, robots directives, and API quotas. A module that gets the project's infrastructure blocked hurts every other module.
+
+  </Accordion>
+
+  <Accordion title="Golden fixtures">
+
+    Ship sample raw inputs with expected JSONL outputs in the repo and run them in CI. Parsers regress silently otherwise.
+
+  </Accordion>
+
+</Accordions>
+
+## Stage 2 — Contract boundary
+
+Every module repo exposes four things at its boundary.
+
+### 1. Manifest
+
+A `hoard-module.json` file at the repo root:
+
+| Field | Purpose |
+|---|---|
+| `name`, `feed_type` | Identity; `feed_type` maps to a payload schema in the `schemas` repo |
+| `module_version` | Semver of the module itself |
+| `schema_version` | Version (or range) of hoard-schema the output targets |
+| `invocation` | Container image reference (pinned by digest) or CLI command |
+| `schedule_hint` | Suggested cadence; the orchestrator has final say |
+| `egress` | Allowlist of domains the module needs; everything else is blocked at runtime |
+| `secrets` | Required secrets *by name only* — injected at runtime, never stored in the repo |
+| `resources` | CPU / memory / timeout hints for the sandbox |
+| `data_license`, `default_tlp` | Defaults applied when the source doesn't specify |
+| `maintainers` | Who to page when it breaks |
+
+### 2. Fixed entrypoint
+
+An entrypoint with defined semantics:
+
+```
+run [--since <cursor>] [--full] --output out.jsonl
+```
+
+| Exit code | Meaning |
+|---|---|
+| `0` | Success. Zero records is still success — empty windows happen. |
+| `2` | Partial success — valid records were emitted but some source segments failed. The orchestrator ingests what arrived and flags the run. |
+| Any other | Fatal; nothing is ingested. |
+
+Internals can change freely as long as the entrypoint doesn't.
+
+### 3. Run report
+
+Alongside the JSONL, the module writes a small machine-readable receipt (`run-report.json`): records emitted, records that failed self-validation, the new cursor, the source window covered, warnings, module and schema versions, start/finish timestamps.
+
+This turns "the module ran" into an observable event the orchestrator can reason about.
+
+### 4. Self-validation
+
+Before returning, the module validates its own output against the published schema for its `feed_type` and `schema_version` — resolved from the `schemas` repo's stable URLs, see [The Schema System](/module-lifecycle/schema-system) — and fails loudly (or exits `2` with counts in the run report) if records don't conform. This catches problems at the source rather than downstream.
+
+<Callout type="warn" title="Determinism requirement">
+  Given the same source window, a module must emit records with the same deterministic IDs (see [Validation & Deduplication](/module-lifecycle/validation-and-dedup#stage-6--dedup--corroboration)). Retries and replays depend on this.
+</Callout>
+
+## The conformance kit
+
+The project publishes `hoard-conformance`, a test harness any module runs in its own CI. It checks that:
+
+- The manifest is well-formed
+- The entrypoint honors the flag and exit-code contract
+- Output validates against the schema
+- IDs are stable across two identical runs
+- The run report is present
+
+Passing conformance is the bar for registry admission — contributors self-certify before requesting review, which is the only way module review scales as the contributor base grows.
