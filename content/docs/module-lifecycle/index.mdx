@@ -34,7 +34,7 @@ Two lifecycles run in parallel here, and they're easy to conflate:
 A module's internal logic is unconstrained — it can scrape, parse, and enrich however it needs to. What's constrained is the **boundary**: every module exposes the same fixed interface, so the central orchestrator can invoke any module without knowing anything about what's inside it.
 
 ```mermaid
-flowchart LR
+flowchart TB
   subgraph repo["Module repo"]
     direction LR
     A["Capture raw"] --> B["Parse / normalize"] --> C["Self-validate"]
@@ -47,8 +47,8 @@ flowchart LR
     direction LR
     G["Versioned records"] --> H["Distribution"] --> I["Aging / retraction"]
   end
-  C --> D
-  F --> G
+  repo --> orch
+  orch --> store
 ```
 
 ## Two principles, every stage
